@@ -1,0 +1,97 @@
+:root {
+  --font-family: 'Sora', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Typography scale - Increased font sizes throughout */
+  --font-xs: 13px;
+  --font-sm: 15px;
+  --font-md: 17px;
+  --font-lg: 20px;
+  --font-xl: 26px;
+  --font-2xl: 34px;
+
+  /* Theme Tokens: Dark Mode Default */
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-card: rgba(31, 41, 55, 0.75);
+  --bg-card-hover: rgba(45, 55, 72, 0.9);
+  --bg-panel: rgba(17, 24, 39, 0.95);
+
+  --border-color: rgba(255, 255, 255, 0.12);
+  --border-highlight: rgba(59, 130, 246, 0.5);
+
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-muted: #9ca3af;
+
+  --color-green: #008000;
+  --color-green-glow: rgba(0, 128, 0, 0.4);
+  --color-yellow: #FFFF00;
+  --color-yellow-glow: rgba(255, 255, 0, 0.5);
+  --color-red: #FF0000;
+  --color-red-glow: rgba(255, 0, 0, 0.4);
+  --color-blue: #3b82f6;
+  --color-blue-glow: rgba(59, 130, 246, 0.35);
+  --color-unassigned: #4b5563;
+
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] {
+  --bg-primary: #f3f4f6;
+  --bg-secondary: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-card-hover: rgba(243, 244, 246, 1);
+  --bg-panel: #ffffff;
+
+  --border-color: rgba(0, 0, 0, 0.12);
+  --border-highlight: rgba(37, 99, 235, 0.5);
+
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
+
+  /* Cell health colors are immutable — defined once in :root */
+  --color-blue: #2563eb;
+  --color-unassigned: #9ca3af;
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family) !important;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--font-md);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+

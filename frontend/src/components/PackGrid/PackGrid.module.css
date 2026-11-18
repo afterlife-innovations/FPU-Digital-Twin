@@ -1,0 +1,138 @@
+.gridContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 28px;
+  width: 100%;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 1280px;
+  margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.leftToolbar {
+  display: flex;
+  align-items: center;
+}
+
+.gridTitle {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: var(--text-primary);
+}
+
+.rightToolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toggleGroup {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+
+.toggleBtn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toggleBtn:hover {
+  color: var(--text-primary);
+}
+
+.toggleActive {
+  background: var(--color-blue);
+  color: white !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.selectInput {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+}
+
+.selectInput:hover {
+  border-color: var(--border-highlight);
+}
+
+.svgWrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-glass);
+  overflow-x: auto;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.svgGrid {
+  user-select: none;
+}
+
+.axisLabel {
+  fill: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.cellGroup {
+  cursor: pointer;
+}
+
+.cellBody {
+  transition: fill 0.3s ease, stroke 0.3s ease;
+}
+
+/* Hover highlight rect shown via React state — no CSS transform needed */
+.hoverHighlight {
+  pointer-events: none;
+  animation: hoverPulse 1s infinite alternate;
+}
+
+@keyframes hoverPulse {
+  0% { stroke-opacity: 0.5; }
+  100% { stroke-opacity: 0.9; }
+}
+
+.glowRect {
+  animation: pulseGlow 1.5s infinite alternate;
+}
+
+@keyframes pulseGlow {
+  0% { stroke-opacity: 0.5; }
+  100% { stroke-opacity: 1; }
+}
+

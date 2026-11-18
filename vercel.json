@@ -1,0 +1,61 @@
+{
+  "services": {
+    "frontend": {
+      "root": "frontend/"
+    },
+    "backend": {
+      "root": "backend/",
+      "entrypoint": "app.main:app"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/socket.io",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/telemetry/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/pack/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/passport/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/alerts/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/bms/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
+  ]
+}
