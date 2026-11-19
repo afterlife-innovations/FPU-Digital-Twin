@@ -1,6 +1,51 @@
-from sqlalchemy import String, Integer, Float, DateTime, UniqueConstraint, func, Boolean, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Table, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
+
+
+telemetry_export_table = Table(
+    "telemetry_export",
+    Base.metadata,
+    Column("Timestamp", DateTime(timezone=True), nullable=False),
+    Column("Timestamp_Epoch_s", Float),
+    Column("Delta_Time_s", Float),
+    Column("Pack_ID", Text, nullable=False),
+    Column("BMS_Protocol", Text),
+    Column("Operating_Mode", Text),
+    Column("Pack_Voltage_V", Float),
+    Column("Pack_Current_A", Float),
+    Column("Pack_Current_Abs_A", Float),
+    Column("Charge_Current_A", Float),
+    Column("Discharge_Current_A", Float),
+    Column("Pack_Power_W", Float),
+    Column("Cumulative_Charge_Ah", Float),
+    Column("Cumulative_Discharge_Ah", Float),
+    Column("Cumulative_Charge_Wh", Float),
+    Column("Cumulative_Discharge_Wh", Float),
+    Column("Pack_Avg_Bank_Voltage_V", Float),
+    Column("Pack_Min_Bank_Voltage_V", Float),
+    Column("Pack_Max_Bank_Voltage_V", Float),
+    Column("Pack_Voltage_Delta_mV", Float),
+    Column("Pack_NTC_Temperature_C", Float),
+    Column("Telemetry_Measurement_Level", Text),
+    Column("Series_Group", Text),
+    Column("Series_Bank_Voltage_V", Float),
+    Column("Series_Bank_Voltage_mV", Float),
+    Column("Cell_Slot_Position", Text, nullable=False),
+    Column("Cell_Series", Integer),
+    Column("Cell_Parallel", Integer),
+    Column("Battery_Code", Text),
+    Column("Legacy_Cell_ID", Text),
+    Column("Cell_Nominal_Capacity_Ah", Float),
+    Column("Cell_Measured_Capacity_Ah", Float),
+    Column("Cell_Health_Status", Text),
+    Column("Balancing_Current_A", Float),
+    Column("Remaining_Capacity_Ah", Float),
+    Column("Cell_SOC_Percent", Float),
+    Column("Cell_SOH_Percent", Float),
+    Column("Cell_Estimated_Capacity_Ah", Float),
+    Column("Cell_DCIR_mOhm", Float),
+)
 
 
 class PackAssemblySlot(Base):

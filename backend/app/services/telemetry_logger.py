@@ -4,16 +4,45 @@ import io
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import insert, select
 
-from app.config import settings
-from app.models import TelemetryRecord, PackAssemblySlot
+from app.models import PackAssemblySlot, TelemetryRecord, telemetry_export_table
 from app.schemas import TelemetryPayload
 from app.database import AsyncSessionLocal
 from app.services.passport_client import passport_client
 
 logger = logging.getLogger(__name__)
+
+FLOAT_EXPORT_COLUMNS = {
+    "Timestamp_Epoch_s",
+    "Delta_Time_s",
+    "Pack_Voltage_V",
+    "Pack_Current_A",
+    "Pack_Current_Abs_A",
+    "Charge_Current_A",
+    "Discharge_Current_A",
+    "Pack_Power_W",
+    "Cumulative_Charge_Ah",
+    "Cumulative_Discharge_Ah",
+    "Cumulative_Charge_Wh",
+    "Cumulative_Discharge_Wh",
+    "Pack_Avg_Bank_Voltage_V",
+    "Pack_Min_Bank_Voltage_V",
+    "Pack_Max_Bank_Voltage_V",
+    "Pack_Voltage_Delta_mV",
+    "Pack_NTC_Temperature_C",
+    "Series_Bank_Voltage_V",
+    "Series_Bank_Voltage_mV",
+    "Cell_Nominal_Capacity_Ah",
+    "Cell_Measured_Capacity_Ah",
+    "Balancing_Current_A",
+    "Remaining_Capacity_Ah",
+    "Cell_SOC_Percent",
+    "Cell_SOH_Percent",
+    "Cell_Estimated_Capacity_Ah",
+    "Cell_DCIR_mOhm",
+}
+INTEGER_EXPORT_COLUMNS = {"Cell_Series", "Cell_Parallel"}
 
 CSV_HEADERS = [
     "Timestamp",
@@ -64,6 +93,45 @@ class TelemetryLogger:
         self.csv_path = os.path.join(backend_dir, csv_filename)
         self._ensure_csv_initialized()
 
+    @staticmethod
+    def _database_values_for_csv_row(row: List[Any]) -> Dict[str, Any]:
+        if len(row) != len(CSV_HEADERS):
+            raise ValueError(
+                f"Expected {len(CSV_HEADERS)} telemetry export values, got {len(row)}."
+            )
+
+        values = {}
+        for column, value in zip(CSV_HEADERS, row):
+            if value is None or value == "":
+                values[column] = None
+            elif column == "Timestamp":
+                timestamp = str(value).strip()
+                try:
+                    parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                except ValueError:
+                    epoch_s = float(timestamp)
+                    if abs(epoch_s) >= 1e12:
+                        epoch_s /= 1000.0
+                    parsed = datetime.fromtimestamp(epoch_s, timezone.utc)
+                values[column] = (
+                    parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+                )
+            elif column in FLOAT_EXPORT_COLUMNS:
+                values[column] = float(value)
+            elif column in INTEGER_EXPORT_COLUMNS:
+                values[column] = int(float(value))
+            else:
+                values[column] = str(value)
+        return values
+
+    async def _persist_export_rows(self, rows: List[List[Any]]) -> None:
+        if not rows:
+            return
+        values = [self._database_values_for_csv_row(row) for row in rows]
+        async with AsyncSessionLocal() as session:
+            await session.execute(insert(telemetry_export_table), values)
+            await session.commit()
+
     def _ensure_csv_initialized(self):
         """Create or safely extend the CSV schema while preserving existing rows."""
         try:
@@ -99,7 +167,7 @@ class TelemetryLogger:
         """
         Logs a telemetry snapshot to:
         1. The persistent CSV export file (append mode)
-        2. The SQLite database (telemetry_records table)
+        2. The configured database (`telemetry_records` and `telemetry_export`)
         """
         self._ensure_csv_initialized()
 
@@ -143,7 +211,7 @@ class TelemetryLogger:
         except Exception as e:
             logger.warning(f"Error fetching passport metadata for telemetry logger: {e}")
 
-        # 2. Append rows to persistent CSV file
+        # 2. Build rows shared by the CSV file and telemetry_export database table
         try:
             ts = payload.timestamp
             try:
@@ -216,6 +284,22 @@ class TelemetryLogger:
                     round(cell.dcir_mohm, 2),
                 ])
 
+        except Exception as e:
+            logger.error(f"Error building telemetry export rows: {e}")
+            return
+
+        try:
+            await self._persist_export_rows(rows_to_append)
+            logger.info("Persisted %d telemetry export rows to telemetry_export.", len(rows_to_append))
+        except Exception as e:
+            sqlstate = getattr(getattr(e, "orig", None), "sqlstate", None)
+            logger.error(
+                "Error persisting telemetry_export rows (%s, SQLSTATE %s).",
+                type(e).__name__,
+                sqlstate or "unavailable",
+            )
+
+        try:
             with open(self.csv_path, mode="a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerows(rows_to_append)
