@@ -30,7 +30,7 @@
 #define PACK_ID "PACK-8S11P-001"
 
 // >>> CONFIGURE: your deployed Vercel ingest endpoint
-#define SERVER_URL "https://YOUR-PROJECT.vercel.app/telemetry/ingest/raw"
+#define SERVER_URL "https://fpu-digital-twin.vercel.app/telemetry/ingest/raw"
 
 // >>> CONFIGURE: long random string; must match the TWIN_API_KEY secret on the server
 #define API_KEY "a9c613d862383fe5fdf3d1d45030150edb77965ccba85773fc190c281a1e5253"

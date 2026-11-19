@@ -1,31 +1,61 @@
 import { API_BASE } from "./apiBase";
 
+const API_ORIGIN =
+  API_BASE ||
+  (typeof window !== "undefined" ? window.location.origin : "the configured API host");
+
 async function request(url, options = {}) {
-  const res = await fetch(`${API_BASE}${url}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${url}`, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not reach ${API_ORIGIN}${url}: ${reason}`);
+  }
+
+  const responseText = await res.text();
+  let responseData = null;
+  if (responseText) {
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      responseData = null;
+    }
+  }
+
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ detail: res.statusText }));
     let errorMsg = "API Request Failed";
-    if (typeof errorData.detail === "string") {
-      errorMsg = errorData.detail;
-    } else if (Array.isArray(errorData.detail)) {
-      errorMsg = errorData.detail
+    const detail = responseData?.detail;
+    if (typeof detail === "string") {
+      errorMsg = detail;
+    } else if (Array.isArray(detail)) {
+      errorMsg = detail
         .map((d) => {
           if (typeof d === "string") return d;
           const locStr = Array.isArray(d.loc) ? d.loc.filter((x) => x !== "body").join(".") : "";
           return `${locStr ? locStr + ": " : ""}${d.msg || JSON.stringify(d)}`;
         })
         .join("; ");
-    } else if (typeof errorData.detail === "object" && errorData.detail !== null) {
-      errorMsg = errorData.detail.message || errorData.detail.msg || JSON.stringify(errorData.detail);
-    } else if (errorData.message) {
-      errorMsg = errorData.message;
+    } else if (typeof detail === "object" && detail !== null) {
+      errorMsg = detail.message || detail.msg || JSON.stringify(detail);
+    } else if (responseData?.message) {
+      errorMsg = responseData.message;
+    } else if (responseText) {
+      errorMsg = responseText.replace(/\s+/g, " ").slice(0, 240);
+    } else {
+      errorMsg = res.statusText || errorMsg;
     }
-    throw new Error(errorMsg);
+    throw new Error(`${errorMsg} (HTTP ${res.status} for ${url})`);
   }
-  return res.json();
+
+  if (!responseText) return null;
+  if (responseData === null) {
+    throw new Error(`API returned invalid JSON for ${url} (HTTP ${res.status}).`);
+  }
+  return responseData;
 }
 
 export const api = {

@@ -21,6 +21,7 @@ export const AssemblyMapModal = () => {
   const [progress, setProgress] = useState({ assigned_slots: 0, total_slots: TOTAL_SLOTS, completion_percentage: 0 });
   const [mapData, setMapData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [assemblyLoadError, setAssemblyLoadError] = useState(null);
   const [clearingAssignments, setClearingAssignments] = useState(false);
 
   // Single Slot Assignment State
@@ -76,10 +77,12 @@ export const AssemblyMapModal = () => {
       setMapData(mapList);
       useTelemetryStore.getState().setAssemblyMap(mapList);
       setLoading(false);
+      setAssemblyLoadError(null);
       return { prog, mapList };
     } catch (err) {
       console.error("Error loading assembly map:", err);
       setLoading(false);
+      setAssemblyLoadError(err.message || "The backend could not load assembly assignments.");
       return null;
     }
   };
@@ -852,6 +855,23 @@ export const AssemblyMapModal = () => {
         </div>
 
         <div className={styles.body}>
+          {assemblyLoadError && (
+            <div className={styles.errorBox} role="alert">
+              <div>
+                Could not load assembly assignments: {assemblyLoadError}
+              </div>
+              <button
+                type="button"
+                className={styles.searchBtn}
+                style={{ marginTop: "8px", fontSize: "11px", padding: "4px 8px" }}
+                onClick={loadAssemblyData}
+                disabled={loading}
+              >
+                {loading ? "Retrying..." : "Retry"}
+              </button>
+            </div>
+          )}
+
           {/* Progress Bar Header */}
           <div className={styles.progressCard}>
             <div className={styles.progressHeader}>
