@@ -13,6 +13,11 @@ const fmt = (v, digits = 3, unit = "") =>
     ? "N/A"
     : `${Number(v).toFixed(digits)}${unit}`;
 
+const fmtCurrent = (value) => {
+  const formatted = fmt(value, 3, " A");
+  return Number(value) > 0 ? `+${formatted}` : formatted;
+};
+
 async function fetchLatest() {
   const res = await fetch(`${API_BASE}/telemetry/latest`);
   if (!res.ok) throw new Error(`GET /telemetry/latest returned ${res.status}`);
@@ -152,7 +157,7 @@ export const BMSFrameInspectorModal = () => {
           </div>
           <div className={styles.statusItem}>
             <span className={styles.statusLabel}>Current:</span>
-            <span className={styles.statusVal}>{fmt(latest?.pack_current_a, 3, " A")}</span>
+            <span className={styles.statusVal}>{fmtCurrent(latest?.pack_current_a)}</span>
           </div>
           <div className={styles.statusItem}>
             <span className={styles.statusLabel}>SOC:</span>
@@ -262,7 +267,7 @@ export const BMSFrameInspectorModal = () => {
                         <span className={styles.rs485Badge}>{h.bms_protocol || "RS485"}</span>
                       </td>
                       <td>{fmt(h.pack_voltage_v, 3, " V")}</td>
-                      <td>{fmt(h.pack_current_a, 3, " A")}</td>
+                      <td>{fmtCurrent(h.pack_current_a)}</td>
                       <td>{(() => {
                         const values = (h.cells || []).map((cell) => cell.soc_percent).filter((value) => value != null);
                         return values.length ? fmt(values.reduce((sum, value) => sum + Number(value), 0) / values.length, 1, " %") : "N/A";

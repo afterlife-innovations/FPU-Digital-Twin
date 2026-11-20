@@ -869,7 +869,7 @@ def build_dashboard_payload(ts, blk, result, cell_metrics, pack_id, use_wall_tim
             "max_cell_voltage_v": round(max(bank_voltages), 3),
             "voltage_delta_mv": round((max(bank_voltages) - min(bank_voltages)) * 1000.0, 1),
             "avg_temperature_c": round(avg_temp, 1),
-            "pack_current_a": round(abs(current), 3),
+            "pack_current_a": round(current, 3),
             "green_count": counts["green"],
             "yellow_count": counts["yellow"],
             "red_count": counts["red"],

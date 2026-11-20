@@ -48,11 +48,11 @@ export const PackSummary = () => {
       </div>
 
       <div className={styles.metricCard}>
-        <span className={styles.label}>PACK CURRENT</span>
+        <span className={styles.label}>PACK CURRENT (+ charge / - discharge)</span>
         <div className={styles.valueGroup}>
           {hasLiveData ? (
             <>
-              <span className={styles.value}>{liveCurrent.toFixed(2)} A</span>
+              <span className={styles.value}>{liveCurrent > 0 ? "+" : ""}{liveCurrent.toFixed(2)} A</span>
               <span className={styles.subtext}>
                 {summary?.operating_mode ? `Mode: ${summary.operating_mode}` : `Power: ${(liveVoltage * liveCurrent).toFixed(1)} W`}
               </span>

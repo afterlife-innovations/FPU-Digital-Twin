@@ -221,15 +221,15 @@ class TelemetryLogger:
 
             summary = payload.summary
             mode = getattr(summary, "operating_mode", None) or "CHARGING"
-            chg_curr = payload.pack_current_a if mode == "CHARGING" else 0.0
-            dis_curr = payload.pack_current_a if mode == "DISCHARGING" else 0.0
-            signed_curr = chg_curr - dis_curr
+            signed_curr = float(payload.pack_current_a)
+            chg_curr = max(signed_curr, 0.0)
+            dis_curr = min(signed_curr, 0.0)
 
             cum_chg_ah = getattr(summary, "cumulative_charge_ah", None) or 0.0
             cum_dis_ah = getattr(summary, "cumulative_discharge_ah", None) or 0.0
             cum_chg_wh = getattr(summary, "cumulative_charge_wh", None) or 0.0
             cum_dis_wh = getattr(summary, "cumulative_discharge_wh", None) or 0.0
-            pwr_w = getattr(summary, "pack_power_w", None) or round(payload.pack_voltage_v * signed_curr, 2)
+            pwr_w = round(payload.pack_voltage_v * signed_curr, 2)
 
             rows_to_append = []
             for cell in payload.cells:
@@ -251,7 +251,7 @@ class TelemetryLogger:
                     mode,
                     round(payload.pack_voltage_v, 3),
                     round(signed_curr, 3),
-                    round(payload.pack_current_a, 3),
+                    round(abs(signed_curr), 3),
                     round(chg_curr, 3),
                     round(dis_curr, 3),
                     round(pwr_w, 2),

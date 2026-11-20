@@ -37,8 +37,8 @@
 
 // >>> CONFIGURE: name and password of the setup hotspot the ESP32 broadcasts
 //     when it has no saved Wi-Fi (password must be 8+ chars, or "" for open)
-#define SETUP_AP_NAME "iPhone"
-#define SETUP_AP_PASS "abcdefgh"
+#define SETUP_AP_NAME "TwinPack-Setup"
+#define SETUP_AP_PASS "ChangeMe1234"
 
 // >>> CONFIGURE: number of series cells in your pack (8 for 8S11P)
 #define SERIES_COUNT 8

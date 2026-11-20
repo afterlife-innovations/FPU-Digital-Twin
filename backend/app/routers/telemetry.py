@@ -64,6 +64,15 @@ def _infer_operating_mode(pack_id: str, pack_voltage_v: float) -> str:
     return operating_mode
 
 
+def _signed_pack_current(current_magnitude_a: float, operating_mode: str) -> float:
+    current_magnitude_a = abs(float(current_magnitude_a))
+    if operating_mode == "CHARGING":
+        return current_magnitude_a
+    if operating_mode == "DISCHARGING":
+        return -current_magnitude_a
+    return 0.0
+
+
 def register_sio(sio):
     """Called from main.py to share the Socket.IO server with this router."""
     global _sio_server
@@ -246,7 +255,7 @@ async def ingest_raw_telemetry(
         observer_ts = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).timestamp()
     except ValueError:
         observer_ts = datetime.now(timezone.utc).timestamp()
-    pack_current = abs(raw.pack_current_a or 0.0)
+    pack_current_magnitude = abs(raw.pack_current_a or 0.0)
     balancing_current = raw.balancing_current_a or 0.0
     if pack_id not in _observer_cell_metrics_by_pack:
         loaded_metrics = await _load_assigned_cell_metrics(pack_id, db)
@@ -270,17 +279,17 @@ async def ingest_raw_telemetry(
             else sum(series_voltages)
         )
         operating_mode = _infer_operating_mode(pack_id, observed_pack_voltage)
+        signed_pack_current = _signed_pack_current(pack_current_magnitude, operating_mode)
         balance_on = abs(balancing_current) >= pack_observer.p.bal_on_a
         observer_result = pack_observer.ingest(
             observer_ts,
             series_voltages,
-            pack_current,
+            pack_current_magnitude,
             ntc_temps or [25.0],
             balance_on,
             raw.remaining_capacity_ah,
             operating_mode=operating_mode,
         )
-        observer_current = observer_result["i_pack_discharge_pos"]
 
     for s in range(1, settings.series_count + 1):  # 1..8
         bank_v = series_voltages[s - 1]
@@ -350,20 +359,20 @@ async def ingest_raw_telemetry(
         max_cell_voltage_v=round(max_v, 3),
         voltage_delta_mv=v_delta_mv,
         avg_temperature_c=round(avg_temp, 1),
-        pack_current_a=round(abs(pack_current), 2),
+        pack_current_a=round(signed_pack_current, 2),
         charging_current_limit_a=None,
         is_charging_limit_exceeded=False,
         green_count=green_cnt,
         yellow_count=yellow_cnt,
         red_count=red_cnt,
         operating_mode=operating_mode,
-        pack_power_w=round(total_v * observer_current, 2)
+        pack_power_w=round(total_v * signed_pack_current, 2)
     )
 
     payload = TelemetryPayload(
         pack_id=pack_id,
         timestamp=now_iso,
-        pack_current_a=round(abs(pack_current), 2),
+        pack_current_a=round(signed_pack_current, 2),
         pack_voltage_v=round(total_v, 2),
         balancing_current_a=round(balancing_current, 3),
         remaining_capacity_ah=raw.remaining_capacity_ah,

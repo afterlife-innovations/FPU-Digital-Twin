@@ -25,7 +25,9 @@ class PackSummary(BaseModel):
     max_cell_voltage_v: float
     voltage_delta_mv: float
     avg_temperature_c: float
-    pack_current_a: float
+    pack_current_a: float = Field(
+        ..., description="Signed current: positive while charging, negative while discharging."
+    )
     charging_current_limit_a: Optional[float] = None
     is_charging_limit_exceeded: bool = False
     green_count: int
@@ -44,7 +46,9 @@ class PackSummary(BaseModel):
 class TelemetryPayload(BaseModel):
     pack_id: str
     timestamp: str
-    pack_current_a: float
+    pack_current_a: float = Field(
+        ..., description="Signed current: positive while charging, negative while discharging."
+    )
     pack_voltage_v: float
     balancing_current_a: Optional[float] = None
     remaining_capacity_ah: Optional[float] = None
@@ -57,7 +61,10 @@ class RawTelemetryPayload(BaseModel):
     pack_id: Optional[str] = "PACK-8S11P-001"
     bms_protocol: Optional[str] = "RS485-to-TTL"
     pack_voltage_v: Optional[float] = None
-    pack_current_a: Optional[float] = 0.0
+    pack_current_a: Optional[float] = Field(
+        0.0,
+        description="Raw BMS current magnitude; the API applies charge/discharge sign to published telemetry.",
+    )
     balancing_current_a: Optional[float] = None
     remaining_capacity_ah: Optional[float] = None
     cell_voltages_v: Optional[List[float]] = Field(None, description="Array of 8 series group voltages or 88 cell voltages (V or mV)")
