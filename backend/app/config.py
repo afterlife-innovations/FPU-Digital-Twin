@@ -32,7 +32,7 @@ class PackConfig(BaseSettings):
     afterlife_api_base_url: str = "https://afterlife-int-production.up.railway.app"
     database_backend: Literal["sqlite", "postgresql"] = "sqlite"
     database_url: str = "sqlite+aiosqlite:///./digital_twin.db"
-    twin_api_key: Optional[str] = None
+    twin_api_key: Optional[str] = "a9c613d862383fe5fdf3d1d45030150edb77965ccba85773fc190c281a1e5253"
     callmebot_api_key: Optional[str] = None
     callmebot_phone: Optional[str] = None
 

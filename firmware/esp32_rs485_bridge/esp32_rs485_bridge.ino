@@ -8,7 +8,6 @@
 //   MAX485 DE+RE -> ESP32 GPIO4
 //   MAX485 VCC   -> 5V, GND -> GND
 //   MAX485 A/B   -> JK BMS RS485 A/B
-//   GPIO27       -> momentary switch to GND (hold at power-up to erase Wi-Fi)
 //   GPIO2        -> status LED (onboard LED on most DevKit boards)
 //
 // Libraries (Library Manager): "WiFiManager" by tzapu
@@ -57,7 +56,6 @@
 #define PIN_RX 16
 #define PIN_TX 17
 #define PIN_DE_RE 4
-#define PIN_RESET_WIFI 27   // not GPIO0 (that enters flash mode if held at boot)
 #define PIN_LED 2
 #define BMS_BAUD 115200
 #define LISTEN_MS 800
@@ -325,7 +323,6 @@ void setup() {
   Serial.println("\n[ESP32] JK-BD6A24S6P RS485 -> Digital Twin bridge starting");
 
   pinMode(PIN_LED, OUTPUT);
-  pinMode(PIN_RESET_WIFI, INPUT_PULLUP);
 #if USE_MAX485
   pinMode(PIN_DE_RE, OUTPUT);
   digitalWrite(PIN_DE_RE, LOW);
@@ -334,20 +331,18 @@ void setup() {
   Serial2.begin(BMS_BAUD, SERIAL_8N1, PIN_RX, PIN_TX);
 
   // ---- Wi-Fi provisioning ----
-  // Uses saved credentials if present. Otherwise (or if that network is not
-  // reachable) the ESP32 broadcasts SETUP_AP_NAME for 3 minutes so a phone can
-  // enter the real Wi-Fi details. Credentials are stored in flash.
+  // Start setup at every boot and keep the portal open until Wi-Fi connects.
+  // Clear old credentials and keep new ones in RAM only.
   WiFiManager wm;
-  if (digitalRead(PIN_RESET_WIFI) == LOW) {
-    Serial.println("[WiFi] reset pin held: erasing saved credentials");
-    wm.resetSettings();
-  }
+  wm.setRestorePersistent(false);
+  wm.resetSettings();
+  WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
   wm.setConnectTimeout(20);
-  wm.setConfigPortalTimeout(180);
+  wm.setConfigPortalTimeout(0);
   digitalWrite(PIN_LED, HIGH);   // LED on while in setup/connect phase
   if (!wm.autoConnect(SETUP_AP_NAME, SETUP_AP_PASS)) {
-    Serial.println("[WiFi] setup timed out, restarting");
+    Serial.println("[WiFi] setup failed, restarting");
     ESP.restart();
   }
   Serial.println("[WiFi] Connected, IP: " + WiFi.localIP().toString());

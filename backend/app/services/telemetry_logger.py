@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from sqlalchemy import insert, select
 
+from app.config import settings
 from app.models import PackAssemblySlot, TelemetryRecord, telemetry_export_table
 from app.schemas import TelemetryPayload
 from app.database import AsyncSessionLocal
@@ -286,15 +287,20 @@ class TelemetryLogger:
 
         except Exception as e:
             logger.error(f"Error building telemetry export rows: {e}")
+            if settings.database_backend == "postgresql":
+                raise RuntimeError("Failed to build telemetry export rows.") from e
             return
 
+        database_error = None
         try:
             await self._persist_export_rows(rows_to_append)
             logger.info("Persisted %d telemetry export rows to telemetry_export.", len(rows_to_append))
         except Exception as e:
+            database_error = e
             sqlstate = getattr(getattr(e, "orig", None), "sqlstate", None)
             logger.error(
-                "Error persisting telemetry_export rows (%s, SQLSTATE %s).",
+                "Error persisting telemetry_export rows using %s (%s, SQLSTATE %s).",
+                settings.database_backend,
                 type(e).__name__,
                 sqlstate or "unavailable",
             )
@@ -308,6 +314,9 @@ class TelemetryLogger:
             logger.info(f"Logged {len(rows_to_append)} rows to telemetry CSV export: {self.csv_path}")
         except Exception as e:
             logger.error(f"Error appending to CSV log file: {e}")
+
+        if database_error is not None and settings.database_backend == "postgresql":
+            raise RuntimeError("Failed to persist telemetry export rows to PostgreSQL.") from database_error
 
     def get_csv_content(self) -> str:
         """Reads the full persistent CSV file content."""
