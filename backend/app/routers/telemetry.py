@@ -24,7 +24,7 @@ from app.services.passport_client import passport_client
 from app.services.anomaly import detect_anomalies
 from app.services.alert_notifications import dispatch_new_anomalies
 from app.database import get_db
-from app.models import PackAssemblySlot, TelemetryRecord
+from app.models import PackAssemblySlot, TelemetryRecord, telemetry_export_table
 from app.services.pack_observer import PackObserver, load_cell_metrics
 
 router = APIRouter(prefix="/telemetry", tags=["Telemetry"])
@@ -137,12 +137,113 @@ async def configure_observer_cell_metrics(request: ObserverCellMetricsRequest):
 # REST Polling & Live Ingest
 # ─────────────────────────────────────────────────────────────────────────────
 
+async def _latest_export_snapshot(db: AsyncSession) -> TelemetryPayload | None:
+    table = telemetry_export_table
+    timestamp_column = table.c["Timestamp"]
+    pack_id_column = table.c["Pack_ID"]
+    latest_result = await db.execute(
+        select(timestamp_column, pack_id_column)
+        .order_by(timestamp_column.desc())
+        .limit(1)
+    )
+    latest_key = latest_result.mappings().first()
+    if latest_key is None:
+        return None
+
+    rows_result = await db.execute(
+        select(table)
+        .where(
+            timestamp_column == latest_key["Timestamp"],
+            pack_id_column == latest_key["Pack_ID"],
+        )
+        .order_by(table.c["Cell_Series"], table.c["Cell_Parallel"])
+    )
+    rows = rows_result.mappings().all()
+    if not rows:
+        return None
+
+    def optional_float(row, column):
+        value = row[column]
+        return float(value) if value is not None else None
+
+    first = rows[0]
+    cells = [
+        CellTelemetry(
+            position=row["Cell_Slot_Position"],
+            series=int(row["Cell_Series"]),
+            parallel=int(row["Cell_Parallel"]),
+            battery_code=row["Battery_Code"],
+            legacy_cell_id=row["Legacy_Cell_ID"],
+            voltage_v=float(row["Series_Bank_Voltage_V"] or 0.0),
+            temperature_c=float(row["Pack_NTC_Temperature_C"] or 0.0),
+            dcir_mohm=float(row["Cell_DCIR_mOhm"] or 0.0),
+            soh_percent=optional_float(row, "Cell_SOH_Percent"),
+            soc_percent=optional_float(row, "Cell_SOC_Percent"),
+            capacity_ah=optional_float(row, "Cell_Estimated_Capacity_Ah"),
+            nominal_capacity_ah=optional_float(row, "Cell_Nominal_Capacity_Ah"),
+            measured_capacity_ah=optional_float(row, "Cell_Measured_Capacity_Ah"),
+            health_status=row["Cell_Health_Status"] or "green",
+        )
+        for row in rows
+    ]
+
+    def numeric(column):
+        value = first[column]
+        return float(value) if value is not None else 0.0
+
+    pack_current = numeric("Pack_Current_A")
+    pack_voltage = numeric("Pack_Voltage_V")
+    timestamp = latest_key["Timestamp"]
+    summary = PackSummary(
+        total_voltage_v=pack_voltage,
+        avg_cell_voltage_v=numeric("Pack_Avg_Bank_Voltage_V"),
+        min_cell_voltage_v=numeric("Pack_Min_Bank_Voltage_V"),
+        max_cell_voltage_v=numeric("Pack_Max_Bank_Voltage_V"),
+        voltage_delta_mv=numeric("Pack_Voltage_Delta_mV"),
+        avg_temperature_c=numeric("Pack_NTC_Temperature_C"),
+        pack_current_a=pack_current,
+        green_count=sum(cell.health_status == "green" for cell in cells),
+        yellow_count=sum(cell.health_status == "yellow" for cell in cells),
+        red_count=sum(cell.health_status == "red" for cell in cells),
+        operating_mode=first["Operating_Mode"] or "IDLE",
+        pack_power_w=numeric("Pack_Power_W"),
+        cumulative_charge_ah=numeric("Cumulative_Charge_Ah"),
+        cumulative_discharge_ah=numeric("Cumulative_Discharge_Ah"),
+        cumulative_charge_wh=numeric("Cumulative_Charge_Wh"),
+        cumulative_discharge_wh=numeric("Cumulative_Discharge_Wh"),
+    )
+    return TelemetryPayload(
+        pack_id=latest_key["Pack_ID"],
+        timestamp=timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp),
+        pack_current_a=pack_current,
+        pack_voltage_v=pack_voltage,
+        balancing_current_a=optional_float(first, "Balancing_Current_A"),
+        remaining_capacity_ah=optional_float(first, "Remaining_Capacity_Ah"),
+        bms_protocol=first["BMS_Protocol"] or "RS485-to-TTL",
+        summary=summary,
+        cells=cells,
+        anomaly_flags=detect_anomalies(
+            [cell.model_dump() for cell in cells],
+            thresholds=thresholds,
+        ),
+    )
+
+
 @router.get("/latest", response_model=TelemetryPayload)
-async def get_latest_telemetry():
+async def get_latest_telemetry(db: AsyncSession = Depends(get_db)):
     """
-    REST polling fallback endpoint (FR-2.9).
-    Returns the latest telemetry snapshot.
+    Returns the latest telemetry snapshot from Neon when PostgreSQL is active,
+    falling back to this process's memory only when no persisted snapshot exists.
     """
+    if settings.database_backend == "postgresql":
+        payload = await _latest_export_snapshot(db)
+        if payload:
+            return payload
+        raise HTTPException(
+            status_code=503,
+            detail="No telemetry rows have been persisted to telemetry_export yet.",
+        )
+
     payload = await telemetry_store.get_latest()
     if not payload:
         raise HTTPException(status_code=503, detail="Telemetry data not available yet — no live data received.")
