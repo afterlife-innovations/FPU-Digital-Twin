@@ -5,8 +5,8 @@ echo ========================================================
 echo.
 
 :: Start FastAPI Backend in a separate window
-echo [1/2] Launching Backend on http://127.0.0.1:8000 ...
-start "Digital Twin - Backend (FastAPI)" cmd /k "cd /d "%~dp0backend" && python run.py"
+echo [1/2] Launching Neon-backed API on http://127.0.0.1:8000 ...
+start "Digital Twin - Backend (FastAPI / Neon)" /D "%~dp0backend" cmd /k "set DATABASE_BACKEND=postgresql && python run.py"
 
 :: Brief delay to allow backend to bind port
 timeout /t 2 /nobreak >nul
@@ -19,5 +19,5 @@ echo.
 echo ========================================================
 echo   System launched successfully!
 echo   Frontend : http://localhost:5173
-echo   Backend  : http://127.0.0.1:8000/docs
+echo   Backend  : http://127.0.0.1:8000/docs (PostgreSQL / Neon)
 echo ========================================================
