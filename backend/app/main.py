@@ -60,5 +60,6 @@ async def connect(sid, environ):
 async def disconnect(sid):
     logger.info(f"Client disconnected: {sid}")
 
-# Wrap FastAPI app with Socket.IO ASGI application
-app = socketio.ASGIApp(sio, fastapi_app)
+# Vercel's FastAPI runtime loads `app`; keep the Socket.IO wrapper for local ASGI hosting.
+app = fastapi_app
+socketio_app = socketio.ASGIApp(sio, fastapi_app)
