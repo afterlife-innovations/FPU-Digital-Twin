@@ -10,7 +10,7 @@ from typing import Dict, List, Any
 from app.config import HealthThresholds, thresholds as default_thresholds
 
 logger = logging.getLogger(__name__)
-SOH_ANOMALY_THRESHOLD_PERCENT = 55.0
+SOH_ANOMALY_THRESHOLD_PERCENT = 60.0
 
 def detect_anomalies(
     cells: List[Dict[str, Any]],
@@ -64,7 +64,7 @@ def detect_anomalies(
             variance = sum((v - mean) ** 2 for v in values) / n
             std_dev = math.sqrt(variance) if variance > 0 else 0.0
 
-            if std_dev < 1e-6:
+            if std_dev < 1e-3:
                 continue
 
             for cell, val in available_cells:

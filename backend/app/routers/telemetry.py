@@ -1,7 +1,7 @@
 import asyncio
 import secrets
 from fastapi import APIRouter, HTTPException, Query, Depends, Header
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import io
@@ -19,7 +19,7 @@ from app.schemas import (
 )
 from app.services.health import calculate_cell_health
 from app.services.telemetry_store import telemetry_store
-from app.services.telemetry_logger import telemetry_logger
+from app.services.telemetry_logger import CSV_HEADERS, telemetry_logger
 from app.services.passport_client import passport_client
 from app.services.anomaly import detect_anomalies
 from app.services.alert_notifications import dispatch_new_anomalies
@@ -656,11 +656,47 @@ async def export_telemetry_data(
             headers={"Content-Disposition": f"attachment; filename=telemetry_export_{pack_id}.json"}
         )
 
+    headers = {
+        "Content-Disposition": f"attachment; filename=telemetry_export_{pack_id}.csv"
+    }
+    if settings.database_backend == "postgresql":
+        async def stream_database_csv():
+            output = io.StringIO(newline="")
+            writer = csv.writer(output)
+            writer.writerow(CSV_HEADERS)
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+            result = await db.stream(
+                select(telemetry_export_table).order_by(
+                    telemetry_export_table.c["Timestamp"],
+                    telemetry_export_table.c["Pack_ID"],
+                    telemetry_export_table.c["Cell_Series"],
+                    telemetry_export_table.c["Cell_Parallel"],
+                )
+            )
+            try:
+                async for rows in result.mappings().partitions(500):
+                    for row in rows:
+                        writer.writerow([row[column] for column in CSV_HEADERS])
+                    yield output.getvalue()
+                    output.seek(0)
+                    output.truncate(0)
+            finally:
+                await result.close()
+
+        return StreamingResponse(
+            stream_database_csv(),
+            media_type="text/csv",
+            headers=headers,
+        )
+
     # Read persistent logged telemetry CSV
     csv_content = telemetry_logger.get_csv_content()
 
     return Response(
         content=csv_content,
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=telemetry_export_{pack_id}.csv"}
+        headers=headers,
     )
