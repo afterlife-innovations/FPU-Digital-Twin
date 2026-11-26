@@ -1,5 +1,6 @@
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 class CellTelemetry(BaseModel):
     position: str = Field(..., description="Position string, e.g. S1-P1")
@@ -74,6 +75,23 @@ class RawTelemetryPayload(BaseModel):
     soh_percent: Optional[List[float]] = None
     soc_percent: Optional[float | List[float]] = None
     timestamp: Optional[str] = None
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def normalize_epoch_timestamp(cls, value):
+        if value is None or isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            if value == 0:
+                return None
+            epoch_seconds = float(value)
+            if abs(epoch_seconds) >= 1e12:
+                epoch_seconds /= 1000.0
+            try:
+                return datetime.fromtimestamp(epoch_seconds, timezone.utc).isoformat()
+            except (OverflowError, OSError, ValueError) as exc:
+                raise ValueError("timestamp epoch is out of range") from exc
+        return value
 
 class ObserverCellMetric(BaseModel):
     position: str
