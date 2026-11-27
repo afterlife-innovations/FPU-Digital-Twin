@@ -4,6 +4,7 @@ import asyncio
 import re
 import time
 from typing import Dict, Any, Optional, List
+from urllib.parse import quote
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -521,35 +522,45 @@ class AfterlifePassportClient:
 
     async def get_passport_by_code(self, battery_code: str) -> Optional[Dict[str, Any]]:
         """
-        ðŸ”— AFTERLIFE API: Searches for exact battery_code match.
-        Workaround for 500 error on GET /passport/{battery_code}.
+        Searches inventory first, then uses the exact endpoint for records omitted from inventory results.
         """
         data = await self.search_passports(battery_code, page_size=5)
-        passports = data.get("passports", [])
-        for p in passports:
-            if p.get("battery_code") == battery_code:
-                if p.get("measured_capacity_ah") is None:
-                    soh = p.get("soh_percent")
-                    nom = p.get("nominal_capacity_ah") or p.get("nominal_capacity")
-                    if soh is not None and nom is not None:
-                        try:
-                            p["measured_capacity_ah"] = round((float(soh) / 100.0) * float(nom), 3)
-                        except (ValueError, TypeError):
-                            pass
-                return p
-        if passports:
-            p = passports[0]
-            if p.get("measured_capacity_ah") is None:
-                soh = p.get("soh_percent")
-                nom = p.get("nominal_capacity_ah") or p.get("nominal_capacity")
-                if soh is not None and nom is not None:
-                    try:
-                        p["measured_capacity_ah"] = round((float(soh) / 100.0) * float(nom), 3)
-                    except (ValueError, TypeError):
-                        pass
-            return p
-        # Do not synthesize passport data when Afterlife is unreachable or has no match.
-        return None
+        passport = next(
+            (
+                item for item in data.get("passports", [])
+                if item.get("battery_code") == battery_code
+            ),
+            None,
+        )
+
+        if passport is None:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    f"{self.base_url}/passport/{quote(battery_code, safe='')}"
+                )
+                if response.status_code == 404:
+                    return None
+                response.raise_for_status()
+                response_data = response.json()
+                passport = response_data.get("passport", response_data)
+                if not isinstance(passport, dict) or passport.get("battery_code") != battery_code:
+                    return None
+
+        if passport.get("measured_capacity_ah") is None:
+            soh = passport.get("soh_percent")
+            nominal_capacity = (
+                passport.get("nominal_capacity_ah")
+                or passport.get("nominal_capacity")
+            )
+            if soh is not None and nominal_capacity is not None:
+                try:
+                    passport["measured_capacity_ah"] = round(
+                        (float(soh) / 100.0) * float(nominal_capacity),
+                        3,
+                    )
+                except (ValueError, TypeError):
+                    pass
+        return passport
 
     async def get_cell_tests(self, battery_code: str) -> Dict[str, Any]:
         """
