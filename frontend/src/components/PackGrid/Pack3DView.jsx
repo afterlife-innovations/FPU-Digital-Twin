@@ -4,29 +4,7 @@ import { useTelemetryStore } from "../../stores/useTelemetryStore";
 import styles from "./Pack3DView.module.css";
 import { getCellDisplayStatus } from "./cellDisplayStatus";
 
-function getCellColor(cell, position, anomalyFlags, isHeatmap) {
-  if (isHeatmap) {
-    const temp = cell?.temperature_c;
-    if (temp == null) return new THREE.Color("#334155");
-    if (temp <= 24) {
-      // Cool: Pure Cyan (#00FFFF)
-      return new THREE.Color("#00FFFF");
-    } else if (temp <= 34) {
-      // Nominal Normal: Pure Green (#008000)
-      return new THREE.Color("#008000");
-    } else if (temp <= 45) {
-      // Elevated Warm: Pure Yellow (#FFFF00)
-      return new THREE.Color("#FFFF00");
-    } else if (temp <= 52) {
-      // High Warning: Pure Orange (#FFA500)
-      return new THREE.Color("#FFA500");
-    } else {
-      // Critical Hazard: Pure Red (#FF0000)
-      return new THREE.Color("#FF0000");
-    }
-  }
-
-  // Default: Health traffic light (pure hex codes)
+function getCellColor(cell, position, anomalyFlags) {
   const status = getCellDisplayStatus(cell, position, anomalyFlags);
   if (!status) return new THREE.Color("#334155");
   if (status === "red") return new THREE.Color("#FF0000");
@@ -44,7 +22,6 @@ export const Pack3DView = () => {
   const assemblyMapRef = useRef({});
   const legacyMapRef = useRef({});
   const anomalyFlagsRef = useRef({});
-  const heatmapOverlayRef = useRef(false);
   const selectedPositionRef = useRef(null);
 
   // Store references from the Zustand store
@@ -52,7 +29,6 @@ export const Pack3DView = () => {
   const assemblyMap = useTelemetryStore((state) => state.assemblyMap);
   const legacyMap = useTelemetryStore((state) => state.legacyMap);
   const anomalyFlags = useTelemetryStore((state) => state.anomalyFlags);
-  const heatmapOverlay = useTelemetryStore((state) => state.heatmapOverlay);
   const selectedPosition = useTelemetryStore((state) => state.selectedPosition);
   const setSelectedPosition = useTelemetryStore((state) => state.setSelectedPosition);
   const setHoveredCell = useTelemetryStore((state) => state.setHoveredCell);
@@ -88,10 +64,6 @@ export const Pack3DView = () => {
   useEffect(() => {
     anomalyFlagsRef.current = anomalyFlags;
   }, [anomalyFlags]);
-
-  useEffect(() => {
-    heatmapOverlayRef.current = heatmapOverlay;
-  }, [heatmapOverlay]);
 
   useEffect(() => {
     selectedPositionRef.current = selectedPosition;
@@ -330,7 +302,6 @@ export const Pack3DView = () => {
       const currentCells = cellsRef.current;
       const currentMap = assemblyMapRef.current;
       const currentAnomalyFlags = anomalyFlagsRef.current;
-      const currentHeatmap = heatmapOverlayRef.current;
       const currentSelected = selectedPositionRef.current;
 
       meshMap.forEach(({ cellMat, cellGroup }, pos) => {
@@ -340,7 +311,6 @@ export const Pack3DView = () => {
           cellData,
           pos,
           currentAnomalyFlags,
-          currentHeatmap,
         );
         cellMat.color.lerp(targetColor, 0.1);
 

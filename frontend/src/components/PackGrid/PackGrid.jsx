@@ -5,32 +5,7 @@ import styles from "./PackGrid.module.css";
 import { getCellDisplayStatus } from "./cellDisplayStatus";
 
 // Helper color function for 2D mode
-function get2DCellColor(cellData, position, anomalyFlags, isHeatmap) {
-  // When heatmap overlay is active, render distinct discrete pure thermal hex colors
-  if (isHeatmap) {
-    const temp = cellData?.temperature_c;
-    if (temp == null) {
-      return { fill: "#334155", stroke: "#475569" };
-    }
-    if (temp <= 24) {
-      // Cool: Pure Cyan (#00FFFF)
-      return { fill: "#00FFFF", stroke: "#00CED1" };
-    } else if (temp <= 34) {
-      // Nominal Normal: Pure Green (#008000)
-      return { fill: "#008000", stroke: "#00FF00" };
-    } else if (temp <= 45) {
-      // Elevated Warm: Pure Yellow (#FFFF00)
-      return { fill: "#FFFF00", stroke: "#FFFF00" };
-    } else if (temp <= 52) {
-      // High Warning: Pure Orange (#FFA500)
-      return { fill: "#FFA500", stroke: "#FF8C00" };
-    } else {
-      // Critical Hazard: Pure Red (#FF0000)
-      return { fill: "#FF0000", stroke: "#FF0000" };
-    }
-  }
-
-  // Health traffic light (pure hex codes) - displays real-time health for all cells
+function get2DCellColor(cellData, position, anomalyFlags) {
   const status = getCellDisplayStatus(cellData, position, anomalyFlags);
   if (!status) {
     return { fill: "#334155", stroke: "#475569" };
@@ -65,9 +40,7 @@ export const PackGrid = () => {
   const clearHoveredCell = useTelemetryStore((state) => state.clearHoveredCell);
   const viewMode = useTelemetryStore((state) => state.viewMode);
   const setViewMode = useTelemetryStore((state) => state.setViewMode);
-  const heatmapOverlay = useTelemetryStore((state) => state.heatmapOverlay);
   const anomalyFlags = useTelemetryStore((state) => state.anomalyFlags);
-  const toggleHeatmapOverlay = useTelemetryStore((state) => state.toggleHeatmapOverlay);
   const legacyMap = useTelemetryStore((state) => state.legacyMap) || {};
 
   const [hoveredPosition, setHoveredPositionLocal] = useState(null);
@@ -122,14 +95,6 @@ export const PackGrid = () => {
             </button>
           </div>
 
-          {/* Heatmap Overlay Switch */}
-          <button
-            className={`${styles.toggleBtn} ${heatmapOverlay ? styles.toggleActive : ""}`}
-            onClick={toggleHeatmapOverlay}
-            title="Toggle Temperature Heatmap Overlay"
-          >
-            Heatmap Overlay
-          </button>
         </div>
       </div>
 
@@ -197,12 +162,7 @@ export const PackGrid = () => {
                     const cx = PAD_LEFT + pIdx * (CELL_W + GAP_X);
                     const cy = PAD_TOP + sIdx * (CELL_H + GAP_Y);
 
-                    const colors = get2DCellColor(
-                      cellData,
-                      pos,
-                      anomalyFlags,
-                      heatmapOverlay,
-                    );
+                    const colors = get2DCellColor(cellData, pos, anomalyFlags);
 
                     return (
                       <g

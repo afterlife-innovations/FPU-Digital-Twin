@@ -5,6 +5,7 @@ import styles from "./Header.module.css";
 
 export const Header = () => {
   const connected = useTelemetryStore((state) => state.connected);
+  const timestamp = useTelemetryStore((state) => state.timestamp);
   const packId = useTelemetryStore((state) => state.packId);
   const bmsProtocol = useTelemetryStore((state) => state.bmsProtocol);
   const theme = useTelemetryStore((state) => state.theme);
@@ -99,7 +100,9 @@ export const Header = () => {
 
         <div className={styles.statusIndicator}>
           <span className={`${styles.dot} ${connected ? styles.dotConnected : styles.dotDisconnected}`} />
-          <span className={styles.statusText}>{connected ? "BMS LINK ACTIVE" : "CONNECTING..."}</span>
+          <span className={styles.statusText}>
+            {connected ? "BMS LINK ACTIVE" : timestamp ? "TELEMETRY STALE" : "CONNECTING..."}
+          </span>
         </div>
       </div>
     </header>

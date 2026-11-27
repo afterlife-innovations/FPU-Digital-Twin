@@ -1,5 +1,17 @@
 import { create } from "zustand";
 
+const TELEMETRY_FRESHNESS_MS = 15_000;
+const MAX_CLOCK_SKEW_MS = 30_000;
+
+function isTelemetryFresh(timestamp) {
+  if (typeof timestamp !== "string") return false;
+  const timestampMs = Date.parse(timestamp);
+  if (!Number.isFinite(timestampMs)) return false;
+
+  const ageMs = Date.now() - timestampMs;
+  return ageMs <= TELEMETRY_FRESHNESS_MS && ageMs >= -MAX_CLOCK_SKEW_MS;
+}
+
 export const useTelemetryStore = create((set, get) => ({
   connected: false,
   packId: "PACK-8S11P-001",
@@ -10,7 +22,6 @@ export const useTelemetryStore = create((set, get) => ({
 
   // Phase 2 UI Controls
   viewMode: "3d", // Default to 3D WebGL view (FR-1.4)
-  heatmapOverlay: false,
   theme: "dark", // "dark" | "light"
 
   // Alerts
@@ -69,10 +80,10 @@ export const useTelemetryStore = create((set, get) => ({
   isBmsInspectorOpen: false,
   anomalyFlags: {},
 
-  setConnected: (connected) => set({ connected }),
-
   setViewMode: (mode) => set({ viewMode: mode }),
-  toggleHeatmapOverlay: () => set((state) => ({ heatmapOverlay: !state.heatmapOverlay })),
+  refreshConnectionStatus: () => set((state) => ({
+    connected: isTelemetryFresh(state.timestamp),
+  })),
 
 
   toggleTheme: () => {
@@ -139,6 +150,7 @@ export const useTelemetryStore = create((set, get) => ({
     }
 
     set({
+      connected: isTelemetryFresh(payload.timestamp),
       timestamp: payload.timestamp,
       packId: payload.pack_id || get().packId,
       packVoltage: payload.pack_voltage_v ?? summary?.total_voltage_v ?? get().packVoltage,

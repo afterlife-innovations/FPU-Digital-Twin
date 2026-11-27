@@ -205,7 +205,7 @@ export const AlertsDrawer = () => {
                 <span className={styles.hint}>
                   {channels.whatsapp_delivery_configured
                     ? "CallMeBot WhatsApp is configured. New anomaly alerts will be sent when they first occur."
-                    : "CallMeBot WhatsApp is not configured. Set CALLMEBOT_PHONE and CALLMEBOT_API_KEY in backend/.env."}
+                    : "CallMeBot WhatsApp is not configured. Set CALLMEBOT_PHONE and CALLMEBOT_API_KEY in the backend deployment environment."}
                 </span>
               </div>
             </div>

@@ -33,7 +33,7 @@ export function App() {
       api
         .getLatestTelemetry()
         .then((payload) => updateTelemetry(payload))
-        .catch(() => {});
+        .catch(() => useTelemetryStore.getState().refreshConnectionStatus());
     };
 
     fetchLatestTelemetry();
@@ -42,12 +42,7 @@ export function App() {
 
     // Socket.IO real-time event listeners
     const handleConnect = () => {
-      useTelemetryStore.getState().setConnected(true);
       fetchLatestTelemetry();
-    };
-
-    const handleDisconnect = () => {
-      useTelemetryStore.getState().setConnected(false);
     };
 
     const handleTelemetry = (data) => {
@@ -55,7 +50,6 @@ export function App() {
     };
 
     socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
     socket.on("telemetry", handleTelemetry);
 
     if (socket.connected) {
@@ -65,7 +59,6 @@ export function App() {
     return () => {
       clearInterval(pollInterval);
       socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
       socket.off("telemetry", handleTelemetry);
     };
   }, [packId, updateTelemetry]);
