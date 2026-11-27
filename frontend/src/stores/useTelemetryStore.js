@@ -107,30 +107,21 @@ export const useTelemetryStore = create((set, get) => ({
     if (!payload || !payload.cells) return;
 
     const newCells = {};
-    const alerts = [];
+    const anomalyFlags = payload.anomaly_flags || {};
+    const alertTimestamp = payload.timestamp || new Date().toISOString();
 
     payload.cells.forEach((cell) => {
       newCells[cell.position] = cell;
-
-      // Real-time per-cell alert evaluation (FR-9.1, FR-9.2)
-      if (cell.health_status === "red") {
-        alerts.push({
-          id: `${cell.position}-${Date.now()}`,
-          severity: "critical",
-          position: cell.position,
-          message: `Cell ${cell.position} critical: V=${cell.voltage_v}V, T=${cell.temperature_c}°C, R=${cell.dcir_mohm}mΩ`,
-          timestamp: payload.timestamp || new Date().toISOString(),
-        });
-      } else if (cell.health_status === "yellow") {
-        alerts.push({
-          id: `${cell.position}-${Date.now()}`,
-          severity: "warning",
-          position: cell.position,
-          message: `Cell ${cell.position} warning drift: V=${cell.voltage_v}V, T=${cell.temperature_c}°C`,
-          timestamp: payload.timestamp || new Date().toISOString(),
-        });
-      }
     });
+    const alerts = Object.entries(anomalyFlags).flatMap(([position, breaches]) =>
+      breaches.map((message, index) => ({
+        id: `${position}-${index}-${alertTimestamp}`,
+        severity: message.startsWith("CRITICAL:") ? "critical" : "warning",
+        position,
+        message: `Cell ${position}: ${message}`,
+        timestamp: alertTimestamp,
+      }))
+    );
 
     const summary = payload.summary || get().summary;
 
@@ -160,7 +151,7 @@ export const useTelemetryStore = create((set, get) => ({
       cells: newCells,
       hoveredCellData: nextHoveredData,
       activeAlerts: alerts,
-      anomalyFlags: payload.anomaly_flags || {},
+      anomalyFlags,
     });
   },
 

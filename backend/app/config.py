@@ -1,27 +1,5 @@
 from typing import Literal, Optional
-from pydantic import BaseModel
 from pydantic_settings import BaseSettings
-
-class HealthThresholds(BaseModel):
-    # Voltage thresholds (Volts)
-    voltage_min_green: float = 3.0
-    voltage_max_green: float = 4.2
-    voltage_min_yellow: float = 2.8
-    voltage_max_yellow: float = 4.25
-    voltage_drift_yellow_mv: float = 50.0  # mV deviation from string mean
-
-    # Temperature thresholds (Celsius)
-    temp_max_green: float = 45.0
-    temp_max_yellow: float = 55.0
-
-    # DCIR thresholds (mΩ)
-    dcir_max_green: float = 50.0
-    dcir_max_yellow: float = 75.0
-
-    # SOH thresholds (%)
-    soh_min_green: float = 80.0
-    soh_min_yellow: float = 60.0
-
 
 class PackConfig(BaseSettings):
     pack_id: str = "PACK-8S11P-001"
@@ -41,4 +19,3 @@ class PackConfig(BaseSettings):
         extra = "ignore"
 
 settings = PackConfig()
-thresholds = HealthThresholds()

@@ -1,8 +1,9 @@
 export function getCellDisplayStatus(cell, position, anomalyFlags) {
-  if (cell?.voltage_v == null) return null;
+  if (!cell) return null;
 
-  if (cell.health_status === "red") return "red";
-  if (cell.health_status === "yellow" || anomalyFlags[position]?.length > 0) return "yellow";
+  const breaches = anomalyFlags?.[position] || [];
+  if (breaches.some((message) => message.startsWith("CRITICAL:"))) return "red";
+  if (breaches.length > 0) return "yellow";
 
   return "green";
 }

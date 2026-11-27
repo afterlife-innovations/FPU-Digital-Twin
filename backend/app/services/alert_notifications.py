@@ -11,7 +11,10 @@ _active_alert_categories: Dict[str, set[tuple[str, str]]] = {}
 
 
 def _category(message: str) -> str:
-    return message.split(maxsplit=1)[0].rstrip(":")
+    parts = message.split(maxsplit=2)
+    if len(parts) > 1 and parts[0].rstrip(":") in {"CRITICAL", "WARNING"}:
+        return parts[1].rstrip(":")
+    return parts[0].rstrip(":")
 
 
 async def dispatch_new_anomalies(

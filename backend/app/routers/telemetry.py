@@ -7,9 +7,7 @@ from sqlalchemy import select
 import io
 import csv
 from datetime import datetime, timezone
-from typing import Dict, Any
-
-from app.config import thresholds, settings
+from app.config import settings
 from app.schemas import (
     TelemetryPayload,
     RawTelemetryPayload,
@@ -17,11 +15,10 @@ from app.schemas import (
     PackSummary,
     ObserverCellMetricsRequest,
 )
-from app.services.health import calculate_cell_health
 from app.services.telemetry_store import telemetry_store
 from app.services.telemetry_logger import CSV_HEADERS, telemetry_logger
 from app.services.passport_client import passport_client
-from app.services.anomaly import detect_anomalies
+from app.services.anomaly import ANOMALY_THRESHOLDS, evaluate_cells
 from app.services.alert_notifications import dispatch_new_anomalies
 from app.database import get_db
 from app.models import PackAssemblySlot, TelemetryRecord, telemetry_export_table
@@ -184,10 +181,16 @@ async def _latest_export_snapshot(db: AsyncSession) -> TelemetryPayload | None:
             capacity_ah=optional_float(row, "Cell_Estimated_Capacity_Ah"),
             nominal_capacity_ah=optional_float(row, "Cell_Nominal_Capacity_Ah"),
             measured_capacity_ah=optional_float(row, "Cell_Measured_Capacity_Ah"),
-            health_status=row["Cell_Health_Status"] or "green",
+            health_status="green",
         )
         for row in rows
     ]
+    anomaly_flags, statuses, triggers = evaluate_cells(
+        [cell.model_dump() for cell in cells]
+    )
+    for cell in cells:
+        cell.health_status = statuses[cell.position]
+        cell.trigger_metric = triggers[cell.position]
 
     def numeric(column):
         value = first[column]
@@ -224,10 +227,7 @@ async def _latest_export_snapshot(db: AsyncSession) -> TelemetryPayload | None:
         bms_protocol=first["BMS_Protocol"] or "RS485-to-TTL",
         summary=summary,
         cells=cells,
-        anomaly_flags=detect_anomalies(
-            [cell.model_dump() for cell in cells],
-            thresholds=thresholds,
-        ),
+        anomaly_flags=anomaly_flags,
     )
 
 
@@ -267,11 +267,15 @@ async def ingest_telemetry(payload: TelemetryPayload):
         Body: { ...TelemetryPayload... }
     """
     payload.bms_protocol = _normalize_bms_protocol(payload.bms_protocol)
-    if payload.anomaly_flags is None:
-        payload.anomaly_flags = detect_anomalies(
-            [cell.model_dump() for cell in payload.cells],
-            thresholds=thresholds,
-        )
+    payload.anomaly_flags, statuses, triggers = evaluate_cells(
+        [cell.model_dump() for cell in payload.cells]
+    )
+    for cell in payload.cells:
+        cell.health_status = statuses[cell.position]
+        cell.trigger_metric = triggers[cell.position]
+    payload.summary.green_count = sum(cell.health_status == "green" for cell in payload.cells)
+    payload.summary.yellow_count = sum(cell.health_status == "yellow" for cell in payload.cells)
+    payload.summary.red_count = sum(cell.health_status == "red" for cell in payload.cells)
     await telemetry_store.update(payload)
     await telemetry_logger.log_telemetry_snapshot(payload)
     await dispatch_new_anomalies(
@@ -333,10 +337,6 @@ async def ingest_raw_telemetry(
     num_v = len(v_list)
 
     cells = []
-    voltages = []
-    temps = []
-    green_cnt, yellow_cnt, red_cnt = 0, 0, 0
-
     # Accept either one voltage per series bank or per-cell measurements.
     if num_v >= settings.total_cells:
         series_voltages = [
@@ -349,8 +349,6 @@ async def ingest_raw_telemetry(
             v_list[s - 1] if s - 1 < num_v else 3.7
             for s in range(1, settings.series_count + 1)
         ]
-    avg_string_v = sum(series_voltages) / len(series_voltages)
-
     # Temperatures from NTC probes
     ntc_temps = raw.temperatures_c or []
     avg_temp = round(sum(ntc_temps) / len(ntc_temps), 1) if ntc_temps else 25.0
@@ -411,26 +409,6 @@ async def ingest_raw_telemetry(
             soc_val = observer_bank["cell_soc_pct"][cell_index]
             capacity_val = observer_bank["cell_capacity_ah"][cell_index]
 
-            voltages.append(v_val)
-            temps.append(t_val)
-
-            # Evaluate cell health
-            status, trigger = calculate_cell_health(
-                voltage_v=v_val,
-                temperature_c=t_val,
-                dcir_mohm=dcir_val,
-                soh_percent=soh_val,
-                string_mean_voltage_v=avg_string_v,
-                t=thresholds
-            )
-
-            if status == "green":
-                green_cnt += 1
-            elif status == "yellow":
-                yellow_cnt += 1
-            else:
-                red_cnt += 1
-
             cells.append(CellTelemetry(
                 position=pos,
                 series=s,
@@ -445,9 +423,19 @@ async def ingest_raw_telemetry(
                     passport_cell.nominal_ah if passport_cell.has_nominal_capacity else None
                 ),
                 measured_capacity_ah=passport_cell.measured_ah,
-                health_status=status,
-                trigger_metric=trigger
+                health_status="green",
+                trigger_metric=None
             ))
+
+    anomaly_flags, statuses, triggers = evaluate_cells(
+        [cell.model_dump() for cell in cells]
+    )
+    for cell in cells:
+        cell.health_status = statuses[cell.position]
+        cell.trigger_metric = triggers[cell.position]
+    green_cnt = sum(cell.health_status == "green" for cell in cells)
+    yellow_cnt = sum(cell.health_status == "yellow" for cell in cells)
+    red_cnt = sum(cell.health_status == "red" for cell in cells)
 
     # Aggregates across the 8 series banks
     avg_v = sum(series_voltages) / len(series_voltages)
@@ -482,10 +470,7 @@ async def ingest_raw_telemetry(
         bms_protocol=bms_protocol,
         summary=summary,
         cells=cells,
-        anomaly_flags=detect_anomalies(
-            [cell.model_dump() for cell in cells],
-            thresholds=thresholds,
-        )
+        anomaly_flags=anomaly_flags
     )
 
     await telemetry_store.update(payload)
@@ -603,7 +588,7 @@ async def get_health_thresholds():
     Returns configured health thresholds and pack parameters.
     """
     return {
-        "thresholds": thresholds.model_dump(),
+        "thresholds": ANOMALY_THRESHOLDS,
         "pack_config": {
             "pack_id": settings.pack_id,
             "series_count": settings.series_count,
@@ -621,7 +606,7 @@ async def get_health_thresholds():
 @router.get("/anomalies")
 async def get_pack_anomalies():
     """
-    FR-8.4: Returns cells flagged by 2-sigma deviation engine in the current telemetry snapshot.
+    Returns cells whose telemetry breaches a configured anomaly threshold.
     """
     latest = await telemetry_store.get_latest()
     if not latest or not latest.anomaly_flags:
