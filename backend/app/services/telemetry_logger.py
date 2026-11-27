@@ -208,7 +208,9 @@ class TelemetryLogger:
 
         try:
             legacy_lookup = await passport_client.get_code_to_legacy_map()
-            passports_map = await passport_client.get_code_to_passport_map()
+            passports_map = await passport_client.get_code_to_passport_map(
+                [code for code in assigned_slots.values() if code]
+            )
         except Exception as e:
             logger.warning(f"Error fetching passport metadata for telemetry logger: {e}")
 

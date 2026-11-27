@@ -506,15 +506,37 @@ class AfterlifePassportClient:
             logger.warning(f"Error building legacy cell ID map: {e}")
             return {}
 
-    async def get_code_to_passport_map(self) -> Dict[str, Dict[str, Any]]:
-        """Returns a dict mapping battery_code -> full passport object."""
+    async def get_code_to_passport_map(
+        self,
+        battery_codes: Optional[List[str]] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Return passport records for inventory cells and any requested exact codes."""
         try:
             inv = await self.get_all_inventory_grades()
             passports = {p.get("battery_code"): p for p in inv.get("passports", []) if p.get("battery_code")}
-            return passports
         except Exception as e:
             logger.warning(f"Error building passport map: {e}")
-            return {}
+            passports = {}
+
+        missing_codes = list(dict.fromkeys(
+            code for code in battery_codes or [] if code and code not in passports
+        ))
+        semaphore = asyncio.Semaphore(8)
+
+        async def fetch_missing(code: str):
+            async with semaphore:
+                try:
+                    return code, await self.get_passport_by_code(code)
+                except httpx.HTTPError as e:
+                    logger.warning("Could not fetch passport for assigned code %s: %s", code, e)
+                    return code, None
+
+        for code, passport in await asyncio.gather(
+            *(fetch_missing(code) for code in missing_codes)
+        ):
+            if passport:
+                passports[code] = passport
+        return passports
 
     def _empty_passport(self, battery_code: str) -> Dict[str, Any]:
         """Return an empty passport shell without synthesizing unverified data."""

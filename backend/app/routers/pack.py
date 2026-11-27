@@ -69,7 +69,9 @@ async def get_pack_assembly_map(pack_id: str, db: AsyncSession = Depends(get_db)
         f"S{slot.series}-P{slot.parallel}": slot for slot in result.scalars().all()
     }
     legacy_lookup = await passport_client.get_code_to_legacy_map()
-    passport_lookup = await passport_client.get_code_to_passport_map()
+    passport_lookup = await passport_client.get_code_to_passport_map(
+        [slot.battery_code for slot in assigned_slots.values() if slot.battery_code]
+    )
 
     full_map = []
     for s in range(1, settings.series_count + 1):
@@ -77,7 +79,12 @@ async def get_pack_assembly_map(pack_id: str, db: AsyncSession = Depends(get_db)
             pos = f"S{s}-P{p}"
             slot_obj = assigned_slots.get(pos)
             bcode = slot_obj.battery_code if slot_obj else None
+            passport = passport_lookup.get(bcode) if bcode else None
             leg_id = legacy_lookup.get(bcode) if bcode else None
+            passport_legacy_id = passport.get("legacy_cell_id") if passport else None
+            leg_id = leg_id or (
+                str(passport_legacy_id) if passport_legacy_id is not None else None
+            )
             full_map.append(SlotResponse(
                 series=s,
                 parallel=p,
@@ -85,7 +92,7 @@ async def get_pack_assembly_map(pack_id: str, db: AsyncSession = Depends(get_db)
                 battery_code=bcode,
                 assigned_at=slot_obj.assigned_at.isoformat() if slot_obj and slot_obj.assigned_at else None,
                 legacy_cell_id=leg_id,
-                passport_data=passport_lookup.get(bcode) if bcode else None,
+                passport_data=passport,
             ))
     return full_map
 

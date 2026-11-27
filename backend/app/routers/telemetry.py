@@ -87,7 +87,9 @@ async def _load_assigned_cell_metrics(pack_id: str, db: AsyncSession):
     if not slots:
         return load_cell_metrics()
 
-    passports = await passport_client.get_code_to_passport_map()
+    passports = await passport_client.get_code_to_passport_map(
+        [slot.battery_code for slot in slots if slot.battery_code]
+    )
     cell_parameters = []
     for slot in slots:
         passport = passports.get(slot.battery_code, {})

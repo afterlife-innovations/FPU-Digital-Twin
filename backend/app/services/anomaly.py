@@ -38,6 +38,58 @@ def detect_anomalies(
             )
         return None
 
+    available_voltages = [
+        float(cell["voltage_v"])
+        for cell in cells
+        if cell.get("voltage_v") is not None
+    ]
+    mean_voltage = (
+        sum(available_voltages) / len(available_voltages)
+        if available_voltages
+        else None
+    )
+
+    def health_warning_alerts(cell: Dict[str, Any]) -> List[str]:
+        status = cell.get("health_status")
+        if status not in {"yellow", "red"}:
+            return []
+
+        warnings = []
+        voltage = cell.get("voltage_v")
+        temperature = cell.get("temperature_c")
+
+        if voltage is not None:
+            voltage = float(voltage)
+            if voltage < thresholds.voltage_min_yellow or voltage > thresholds.voltage_max_yellow:
+                warnings.append(
+                    f"Voltage {voltage:.3f}V outside critical range "
+                    f"{thresholds.voltage_min_yellow:g}-{thresholds.voltage_max_yellow:g}V"
+                )
+            elif mean_voltage is not None:
+                drift_mv = abs(voltage - mean_voltage) * 1000.0
+                if drift_mv > thresholds.voltage_drift_yellow_mv:
+                    warnings.append(
+                        f"Voltage drift {drift_mv:.1f}mV exceeds "
+                        f"{thresholds.voltage_drift_yellow_mv:g}mV"
+                    )
+
+        if temperature is not None:
+            temperature = float(temperature)
+            if temperature >= thresholds.temp_max_yellow:
+                if not threshold_alert("temperature_c", temperature):
+                    warnings.append(
+                        f"Temperature {temperature:.1f}C exceeds critical limit "
+                        f"{thresholds.temp_max_yellow:g}C"
+                    )
+            elif temperature >= thresholds.temp_max_green:
+                if not threshold_alert("temperature_c", temperature):
+                    warnings.append(
+                        f"Temperature {temperature:.1f}C exceeds warning limit "
+                        f"{thresholds.temp_max_green:g}C"
+                    )
+
+        return warnings
+
     # Group cells by series
     series_groups: Dict[int, List[Dict[str, Any]]] = {}
     for cell in cells:
@@ -45,6 +97,11 @@ def detect_anomalies(
         series_groups.setdefault(s, []).append(cell)
 
     for group in series_groups.values():
+        for cell in group:
+            position = cell.get("position", "")
+            for warning in health_warning_alerts(cell):
+                anomalies.setdefault(position, []).append(warning)
+
         for metric, label in metric_labels.items():
             available_cells = [
                 (cell, float(cell[metric]))
